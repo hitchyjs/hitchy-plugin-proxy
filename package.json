@@ -1,0 +1,32 @@
+{
+	"name": "hitchy-plugin-proxy",
+	"version": "0.0.1",
+	"description": "hitchy extension forwarding requests to remote servers",
+	"main": "index.js",
+	"scripts": {
+		"test": "mocha --ui=tdd test/**/*.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/hitchyjs/plugin-proxy.git"
+	},
+	"keywords": [
+		"hitchy",
+		"proxy"
+	],
+	"author": "cepharum GmbH",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/hitchyjs/plugin-proxy/issues"
+	},
+	"homepage": "https://github.com/hitchyjs/plugin-proxy#readme",
+	"peerDependencies": {
+		"hitchy": "0.*"
+	},
+	"devDependencies": {
+		"hitchy-server-dev-tools": "*",
+		"mocha": "^5.2.0",
+		"should": "^13.2.3",
+		"should-http": "^0.1.1"
+	}
+}
