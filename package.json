@@ -4,7 +4,7 @@
 	"description": "hitchy extension forwarding requests to remote servers",
 	"main": "index.js",
 	"scripts": {
-		"test": "mocha --ui=tdd test/**/*.js"
+		"test": "mocha --ui=tdd test/scripts/*.js"
 	},
 	"repository": {
 		"type": "git",
@@ -25,6 +25,7 @@
 	},
 	"devDependencies": {
 		"hitchy-server-dev-tools": "*",
+		"http-tag-string": "0.0.1",
 		"mocha": "^5.2.0",
 		"should": "^13.2.3",
 		"should-http": "^0.1.1"
