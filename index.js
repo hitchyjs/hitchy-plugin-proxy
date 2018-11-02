@@ -45,7 +45,7 @@ const defaultAgentOptions = {
  * @param {object} options Hitchy runtime options
  * @returns {Map<string, function>} maps from routes in functions handling requests for either route
  */
-exports.blueprints = function( options ) {
+exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
 	const { runtime: { config: { proxy: proxies } } } = this;
 
 	const routes = new Map();
@@ -102,12 +102,12 @@ exports.blueprints = function( options ) {
  * Generates request handler forwarding requests to some remote target.
  *
  * @param {string} prefix local URL prefix addressing proxy to be created
- * @param {object} library set of methods to use on sending HTTP requests as a client
- * @param {Agent} agent HTTP agent to use on forwarding requests to defined target
- * @param {int} defaultPort default port to use with requests of provided library
  * @param {object} backend parsed properties in base URL of proxy's remote target
  * @param {object} config configuration of proxy to be created
  * @param {object<string,string>} reverseMap maps from a target's absolute URL back to the prefix of related reverse proxy
+ * @param {object} library set of methods to use on sending HTTP requests as a client
+ * @param {Agent} agent HTTP agent to use on forwarding requests to defined target
+ * @param {int} defaultPort default port to use with requests of provided library
  * @returns {function(req:IncomingMessage,res:ServerResponse):void} generated request handler
  */
 function createProxy( { prefix, library, agent, defaultPort }, backend, config, reverseMap ) {
@@ -117,7 +117,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 		const { route } = req.params;
 
 		// prevent client from relatively addressing URL beyond scope of current proxy's prefix
-		const pathname = Path.resolve( backend.path, ...( route || [] ) );
+		const pathname = Path.resolve( backend.path, ...route || [] );
 		if ( pathname.indexOf( backend.path ) !== 0 ) {
 			res.status( 400 ).send( "invalid path name" );
 
@@ -140,23 +140,23 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 		const copiedHeaders = {};
 		{
 			const source = req.headers;
-			const names = Object.keys( source );
-			const numNames = names.length;
-			for ( let i = 0; i < numNames; i++ ) {
-				const name = names[i];
+			const keys = Object.keys( source );
+			const numKeys = keys.length;
+			for ( let i = 0; i < numKeys; i++ ) {
+				const key = keys[i];
 
-				switch ( name ) {
+				switch ( key ) {
 					case "host" :
 						// never pass these headers
 						break;
 
 					default :
-						if ( hideHeaders.indexOf( name ) > -1 ) {
+						if ( hideHeaders.indexOf( key ) > -1 ) {
 							// configuration rejects to pass this header
 							break;
 						}
 
-						copiedHeaders[name] = source[name];
+						copiedHeaders[key] = source[key];
 				}
 			}
 		}
@@ -179,20 +179,20 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 
 			// process and forward response headers sent by backend
 			const source = proxyRes.headers;
-			const names = Object.keys( source );
-			const numNames = names.length;
+			const keys = Object.keys( source );
+			const numKeys = keys.length;
 
-			for ( let i = 0; i < numNames; i++ ) {
-				const name = names[i];
+			for ( let i = 0; i < numKeys; i++ ) {
+				const key = keys[i];
 
-				switch ( name ) {
+				switch ( key ) {
 					case "location" : {
-						res.setHeader( "Location", translateBackendUrl( prefix, route, source[name] ) );
+						res.setHeader( "Location", translateBackendUrl( prefix, route, source[key] ) );
 						break;
 					}
 
 					default :
-						res.setHeader( name, source[name] );
+						res.setHeader( key, source[key] );
 				}
 			}
 
@@ -235,7 +235,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 			for ( let i = 0; i < numSources; i++ ) {
 				const source = sources[i];
 
-				if ( href.indexOf( source ) === 0 && href[source.length].match( /$|[\/?#&]/ ) ) {
+				if ( href.indexOf( source ) === 0 && href[source.length].match( /$|[/?#&]/ ) ) {
 					if ( match == null || source.length > match.length ) {
 						match = source;
 					}
@@ -258,7 +258,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 			const myScope = backend.path;
 			const myScopeSize = myScope.length;
 
-			if ( backendUrl.indexOf( myScope ) === 0 && backendUrl[myScopeSize].match( /$|[\/?#&]/ ) ) {
+			if ( backendUrl.indexOf( myScope ) === 0 && backendUrl[myScopeSize].match( /$|[/?#&]/ ) ) {
 				return Path.join( proxyPrefix, backendUrl.substr( myScopeSize ) );
 			}
 

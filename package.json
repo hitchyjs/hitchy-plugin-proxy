@@ -4,7 +4,8 @@
 	"description": "hitchy extension forwarding requests to remote servers",
 	"main": "index.js",
 	"scripts": {
-		"test": "mocha --ui=tdd test/scripts/*.js"
+		"test": "mocha --ui=tdd test/scripts/*.js",
+		"style": "eslint **/*.js"
 	},
 	"repository": {
 		"type": "git",
@@ -24,6 +25,9 @@
 		"hitchy": "0.*"
 	},
 	"devDependencies": {
+		"eslint": "^5.8.0",
+		"eslint-config-cepharum": "^1.0.8",
+		"eslint-plugin-promise": "^4.0.1",
 		"hitchy-server-dev-tools": "*",
 		"http-tag-string": "0.0.1",
 		"mocha": "^5.2.0",

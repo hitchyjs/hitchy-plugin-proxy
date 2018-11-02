@@ -51,9 +51,7 @@ describe( "Hitchy instance with proxy", () => {
 	} );
 
 	after( "stopping hitchy", () => {
-		if ( server ) {
-			return HitchyDev.stop( server );
-		}
+		return server ? HitchyDev.stop( server ) : undefined;
 	} );
 
 	it( "is running", () => {

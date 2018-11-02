@@ -28,8 +28,6 @@
 
 "use strict";
 
-const Path = require( "path" );
-
 const { describe, before, after, it } = require( "mocha" );
 
 require( "should" );
