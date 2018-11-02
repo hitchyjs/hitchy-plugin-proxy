@@ -28,10 +28,15 @@
 
 "use strict";
 
-const Path = require( "path" );
+const { posix: Path } = require( "path" );
 const HTTP = require( "http" );
 const HTTPS = require( "https" );
-const { URL, URLSearchParams } = require( "url" );
+const URL = require( "url" );
+
+
+const defaultAgentOptions = {
+	keepAlive: true,
+};
 
 
 /**
@@ -44,6 +49,7 @@ exports.blueprints = function( options ) {
 	const { runtime: { config: { proxy: proxies } } } = this;
 
 	const routes = new Map();
+	const reverseMap = {};
 
 	if ( Array.isArray( proxies ) ) {
 		for ( let i = 0, numProxies = proxies.length; i < numProxies; i++ ) {
@@ -51,10 +57,40 @@ exports.blueprints = function( options ) {
 			const { prefix, target } = proxy;
 
 			if ( prefix && target ) {
-				const parsedTarget = new URL( target );
-				const proxyHandler = createProxy( parsedTarget.protocol === "https:" ? HTTPS : HTTP, parsedTarget, proxy );
+				const parsed = URL.parse( target );
+				if ( parsed.hostname ) {
+					const agentOptions = Object.assign( {}, defaultAgentOptions, proxy.agentOptions );
+					const context = {
+						prefix: prefix,
+					};
 
-				routes.set( Path.posix.join( prefix, "/:route*" ), proxyHandler );
+					if ( parsed.protocol === "https:" ) {
+						context.library = HTTPS;
+						context.agent = new HTTPS.Agent( agentOptions );
+						context.defaultPort = 443;
+					} else {
+						context.library = HTTP;
+						context.agent = new HTTP.Agent( agentOptions );
+						context.defaultPort = 80;
+					}
+
+					const url = {
+						protocol: parsed.protocol,
+						host: parsed.hostname,
+						port: parsed.port || context.defaultPort,
+						path: parsed.pathname,
+					};
+
+					const href = `${url.protocol}//${url.host}:${url.port}${url.path}`;
+
+					if ( !reverseMap.hasOwnProperty( href ) ) {
+						const proxyHandler = createProxy( context, url, proxy, reverseMap );
+
+						routes.set( Path.join( prefix, "/:route*" ), proxyHandler );
+
+						reverseMap[href] = prefix;
+					}
+				}
 			}
 		}
 	}
@@ -65,20 +101,39 @@ exports.blueprints = function( options ) {
 /**
  * Generates request handler forwarding requests to some remote target.
  *
- * @param {object} client provides client implementation to use, it's either HTTP or HTTPS library of NodeJs
- * @param {URL} target pre-compiled URL of proxy's remote target
+ * @param {string} prefix local URL prefix addressing proxy to be created
+ * @param {object} library set of methods to use on sending HTTP requests as a client
+ * @param {Agent} agent HTTP agent to use on forwarding requests to defined target
+ * @param {int} defaultPort default port to use with requests of provided library
+ * @param {object} backend parsed properties in base URL of proxy's remote target
  * @param {object} config configuration of proxy to be created
+ * @param {object<string,string>} reverseMap maps from a target's absolute URL back to the prefix of related reverse proxy
  * @returns {function(req:IncomingMessage,res:ServerResponse):void} generated request handler
  */
-function createProxy( client, target, config ) {
+function createProxy( { prefix, library, agent, defaultPort }, backend, config, reverseMap ) {
 	const { hideHeaders = [], timeout = 5000 } = config;
 
 	return ( req, res ) => {
 		const { route } = req.params;
 
-		// compile URL request should be forwarded to
-		const query = new URLSearchParams( req.query );
-		const proxyUrl = new URL( "/" + route.join( "/" ) + "?" + query.toString(), target );
+		// prevent client from relatively addressing URL beyond scope of current proxy's prefix
+		const pathname = Path.resolve( backend.path, ...( route || [] ) );
+		if ( pathname.indexOf( backend.path ) !== 0 ) {
+			res.status( 400 ).send( "invalid path name" );
+
+			return;
+		}
+
+
+		// compile current request's query back into single string
+		const queryNames = Object.keys( req.query );
+		const numNames = queryNames.length;
+		const query = new Array( numNames );
+		for ( let i = 0; i < numNames; i++ ) {
+			const name = queryNames[i];
+
+			query[i] = encodeURIComponent( name ) + "=" + encodeURIComponent( req.query[name] );
+		}
 
 
 		// make a (probably reduced) copy of all incoming request headers
@@ -109,34 +164,107 @@ function createProxy( client, target, config ) {
 
 		// create local client forwarding request to remote target
 		const proxyOptions = {
+			protocol: backend.protocol,
+			host: backend.host,
+			port: backend.port,
 			method: req.method,
-			host: proxyUrl.host,
-			path: proxyUrl.pathname + ( proxyUrl.search ? "?" + proxyUrl.search : "" ),
+			path: pathname + ( query.length > 0 ? "?" + query.join( "&" ) : "" ),
 			headers: copiedHeaders,
 			timeout: timeout,
+			agent: agent,
 		};
 
-		const proxyReq = client.request( proxyOptions, proxyRes => {
+		const proxyReq = library.request( proxyOptions, proxyRes => {
 			res.statusCode = proxyRes.statusCode;
 
+			// process and forward response headers sent by backend
 			const source = proxyRes.headers;
 			const names = Object.keys( source );
 			const numNames = names.length;
+
 			for ( let i = 0; i < numNames; i++ ) {
 				const name = names[i];
 
-				res.setHeader( name, source[name] );
+				switch ( name ) {
+					case "location" : {
+						res.setHeader( "Location", translateBackendUrl( prefix, route, source[name] ) );
+						break;
+					}
+
+					default :
+						res.setHeader( name, source[name] );
+				}
 			}
 
 			proxyRes.pipe( res );
 		} );
 
 		proxyReq.on( "error", error => {
-			res.status( 502 ).json( {
-				error: error.message,
-			} );
+			res
+				.status( 502 )
+				.set( "x-error", error.message )
+				.json( {
+					error: error.message,
+				} );
 		} );
 
 		req.pipe( proxyReq );
 	};
+
+	/**
+	 * Translates URL provided by backend into URL for the proxy's client
+	 * addressing the same resource via the proxy.
+	 *
+	 * @param {string} proxyPrefix URL prefix of current proxy
+	 * @param {string[]} current segments of currently processed route in scope of proxy's prefix
+	 * @param {string} backendUrl URL provided for backend to be translated
+	 * @return {string} translated URL addressing same resource for use by proxy's client
+	 */
+	function translateBackendUrl( proxyPrefix, current, backendUrl ) {
+		const url = URL.parse( backendUrl );
+		if ( url.host ) {
+			// handle redirection to absolute URL
+			const href = `${url.protocol}//${url.hostname}:${url.port || defaultPort}${url.path || ""}${url.hash || ""}`;
+
+
+			// find proxy with longest prefix matching redirection target
+			let match = null;
+			const sources = Object.keys( reverseMap );
+			const numSources = sources.length;
+
+			for ( let i = 0; i < numSources; i++ ) {
+				const source = sources[i];
+
+				if ( href.indexOf( source ) === 0 && href[source.length].match( /$|[\/?#&]/ ) ) {
+					if ( match == null || source.length > match.length ) {
+						match = source;
+					}
+				}
+			}
+
+			if ( match == null ) {
+				// redirect to "foreign" host as given by remote
+				return backendUrl;
+			}
+
+
+			// replace absolute URL with local one addressing matching proxy
+			return Path.join( reverseMap[match], href.substr( match.length ) );
+		}
+
+		const base = "/" + ( current || [] ).slice( 0, -1 ).join( "/" );
+
+		if ( backendUrl[0] === "/" ) {
+			const myScope = backend.path;
+			const myScopeSize = myScope.length;
+
+			if ( backendUrl.indexOf( myScope ) === 0 && backendUrl[myScopeSize].match( /$|[\/?#&]/ ) ) {
+				return Path.join( proxyPrefix, backendUrl.substr( myScopeSize ) );
+			}
+
+			return proxyPrefix;
+		}
+
+		return Path.join( proxyPrefix, Path.resolve( base, backendUrl ) );
+	}
 }

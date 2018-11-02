@@ -63,7 +63,7 @@ describe( "Hitchy instance with proxy", () => {
 			} );
 	} );
 
-	it( "is providing data fetched from target", () => {
+	it( "is providing data fetched from remote target", () => {
 		return HitchyDev.query.get( "/ddg/assets/dax.svg" )
 			.then( res => {
 				res.should.have.status( 200 );

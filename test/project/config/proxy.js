@@ -34,7 +34,11 @@ exports.proxy = [
 		target: "https://duckduckgo.com/",
 	},
 	{
-		prefix: "/denic",
-		target: "https://www.denic.de",
+		prefix: "/local/mirror",
+		target: "http://127.0.0.1:23456/",
+	},
+	{
+		prefix: "/local/sub-mirror",
+		target: "http://127.0.0.1:23456/sub/mirrored",
 	},
 ];
