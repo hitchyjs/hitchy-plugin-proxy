@@ -34,6 +34,7 @@ const HTTPS = require( "https" );
 const URL = require( "url" );
 
 
+
 const defaultAgentOptions = {
 	keepAlive: true,
 };
@@ -46,13 +47,19 @@ const defaultAgentOptions = {
  * @returns {Map<string, function>} maps from routes in functions handling requests for either route
  */
 exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
-	const { runtime: { config: { proxy: proxies } } } = this;
+	const { runtime: { config: { proxy: proxies } }, log } = this;
 
 	const routes = new Map();
 	const reverseMap = {};
+	const Debug = log( "hitchy:proxy" );
+
 
 	if ( Array.isArray( proxies ) ) {
-		for ( let i = 0, numProxies = proxies.length; i < numProxies; i++ ) {
+		const numProxies = proxies.length;
+
+		Debug( "found configuration for %d reverse proxies", numProxies );
+
+		for ( let i = 0; i < numProxies; i++ ) {
 			const proxy = proxies[i] || {};
 			const { prefix, target } = proxy;
 
@@ -84,7 +91,9 @@ exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
 					const href = `${url.protocol}//${url.host}:${url.port}${url.path}`;
 
 					if ( !reverseMap.hasOwnProperty( href ) ) {
-						const proxyHandler = createProxy( context, url, proxy, reverseMap );
+						Debug( "- forwarding %s to %s", prefix, href );
+
+						const proxyHandler = createProxy.call( { Debug }, context, url, proxy, reverseMap );
 
 						routes.set( Path.join( prefix, "/:route*" ), proxyHandler );
 
@@ -109,9 +118,11 @@ exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
  * @param {Agent} agent HTTP agent to use on forwarding requests to defined target
  * @param {int} defaultPort default port to use with requests of provided library
  * @returns {function(req:IncomingMessage,res:ServerResponse):void} generated request handler
+ * @this {{Debug:{log:function(string,...)}}}
  */
 function createProxy( { prefix, library, agent, defaultPort }, backend, config, reverseMap ) {
 	const { hideHeaders = [], timeout = 5000 } = config;
+	const { Debug } = this;
 
 	return ( req, res ) => {
 		const { route } = req.params;
@@ -119,6 +130,8 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 		// prevent client from relatively addressing URL beyond scope of current proxy's prefix
 		const pathname = Path.resolve( backend.path, ...route || [] );
 		if ( pathname.indexOf( backend.path ) !== 0 ) {
+			Debug( "invalid path name: %s", route.join( "/" ) );
+
 			res.status( 400 ).send( "invalid path name" );
 
 			return;
@@ -174,7 +187,14 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 			agent: agent,
 		};
 
+		Debug( "forward request is %s %s//%s:%d%s with headers: %o timeout: %d",
+			proxyOptions.method, proxyOptions.protocol, proxyOptions.host,
+			proxyOptions.port, proxyOptions.path, proxyOptions.headers,
+			proxyOptions.timeout );
+
 		const proxyReq = library.request( proxyOptions, proxyRes => {
+			Debug( "response is %d %o", proxyRes.statusCode, proxyOptions.headers );
+
 			res.statusCode = proxyRes.statusCode;
 
 			// process and forward response headers sent by backend
@@ -187,7 +207,12 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 
 				switch ( key ) {
 					case "location" : {
-						res.setHeader( "Location", translateBackendUrl( prefix, route, source[key] ) );
+						const value = source[key];
+						const translated = translateBackendUrl( prefix, route, value );
+
+						Debug( "translating %s to %s", value, translated );
+						res.setHeader( "Location", translated );
+
 						break;
 					}
 
@@ -200,6 +225,8 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 		} );
 
 		proxyReq.on( "error", error => {
+			Debug( "forward request failed with: %s", error.message );
+
 			res
 				.status( 502 )
 				.set( "x-error", error.message )
