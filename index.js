@@ -118,7 +118,6 @@ exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
  * @param {Agent} agent HTTP agent to use on forwarding requests to defined target
  * @param {int} defaultPort default port to use with requests of provided library
  * @returns {function(req:IncomingMessage,res:ServerResponse):void} generated request handler
- * @this {{Debug:{log:function(string,...)}}}
  */
 function createProxy( { prefix, library, agent, defaultPort }, backend, config, reverseMap ) {
 	const { hideHeaders = [], timeout = 5000 } = config;
