@@ -214,7 +214,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 			proxyReqOptions.timeout );
 
 		const proxyReq = library.request( proxyReqOptions, proxyRes => {
-			Debug( "response is %d %o", proxyRes.statusCode, proxyReqOptions.headers );
+			Debug( "response is %d %o", proxyRes.statusCode, proxyRes.headers );
 
 			res.statusCode = proxyRes.statusCode;
 
