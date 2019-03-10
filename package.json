@@ -1,6 +1,6 @@
 {
 	"name": "hitchy-plugin-proxy",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"description": "hitchy extension forwarding requests to remote servers",
 	"main": "index.js",
 	"scripts": {
