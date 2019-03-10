@@ -90,14 +90,16 @@ exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
 
 					const href = `${url.protocol}//${url.host}:${url.port}${url.path}`;
 
-					if ( !reverseMap.hasOwnProperty( href ) ) {
-						Debug( "- forwarding %s to %s", prefix, href );
+					Debug( "- forwarding %s to %s", prefix, href );
 
-						const proxyHandler = createProxy.call( { Debug }, context, url, proxy, reverseMap );
+					const proxyHandler = createProxy.call( { Debug }, context, url, proxy, reverseMap );
 
-						routes.set( Path.join( prefix, "/:route*" ), proxyHandler );
+					routes.set( Path.join( prefix, "/:route*" ), proxyHandler );
 
-						reverseMap[href] = prefix;
+					if ( reverseMap.hasOwnProperty( href ) ) {
+						reverseMap[href].push( prefix );
+					} else {
+						reverseMap[href] = [prefix];
 					}
 				}
 			}
@@ -128,6 +130,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 
 		// prevent client from relatively addressing URL beyond scope of current proxy's prefix
 		const pathname = Path.resolve( backend.path, ...route || [] );
+
 		if ( pathname.indexOf( backend.path ) !== 0 ) {
 			Debug( "invalid path name: %s", route.join( "/" ) );
 
@@ -141,6 +144,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 		const queryNames = Object.keys( req.query );
 		const numNames = queryNames.length;
 		const query = new Array( numNames );
+
 		for ( let i = 0; i < numNames; i++ ) {
 			const name = queryNames[i];
 
@@ -149,17 +153,33 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 
 
 		// make a (probably reduced) copy of all incoming request headers
+		const client = req.socket.remoteAddress;
+		const proto = req.socket.encrypted ? "https" : "http";
 		const copiedHeaders = {};
+
+		copiedHeaders["x-forwarded-for"] = client;
+		copiedHeaders["x-forwarded-host"] = req.headers.host;
+		copiedHeaders["x-forwarded-proto"] = proto;
+		copiedHeaders["forwarded"] = `for=${client.indexOf( ":" ) < 0 ? client : '"[' + client + ']"'};proto=${proto}`;
+
 		{
 			const source = req.headers;
 			const keys = Object.keys( source );
 			const numKeys = keys.length;
+
 			for ( let i = 0; i < numKeys; i++ ) {
 				const key = keys[i];
 
 				switch ( key ) {
 					case "host" :
+					case "x-real-ip" :
+					case "x-forwarded-proto" :
 						// never pass these headers
+						break;
+
+					case "x-forwarded-for" :
+					case "forwarded" :
+						copiedHeaders[key] = `${source[key]},${copiedHeaders[key]}`;
 						break;
 
 					default :
@@ -173,9 +193,11 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 			}
 		}
 
+		copiedHeaders["x-real-ip"] = client;
+
 
 		// create local client forwarding request to remote target
-		const proxyOptions = {
+		const proxyReqOptions = {
 			protocol: backend.protocol,
 			host: backend.host,
 			port: backend.port,
@@ -187,12 +209,12 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 		};
 
 		Debug( "forward request is %s %s//%s:%d%s with headers: %o timeout: %d",
-			proxyOptions.method, proxyOptions.protocol, proxyOptions.host,
-			proxyOptions.port, proxyOptions.path, proxyOptions.headers,
-			proxyOptions.timeout );
+			proxyReqOptions.method, proxyReqOptions.protocol, proxyReqOptions.host,
+			proxyReqOptions.port, proxyReqOptions.path, proxyReqOptions.headers,
+			proxyReqOptions.timeout );
 
-		const proxyReq = library.request( proxyOptions, proxyRes => {
-			Debug( "response is %d %o", proxyRes.statusCode, proxyOptions.headers );
+		const proxyReq = library.request( proxyReqOptions, proxyRes => {
+			Debug( "response is %d %o", proxyRes.statusCode, proxyReqOptions.headers );
 
 			res.statusCode = proxyRes.statusCode;
 
@@ -207,7 +229,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 				switch ( key ) {
 					case "location" : {
 						const value = source[key];
-						const translated = translateBackendUrl( prefix, route, value );
+						const translated = translateUrlBackendToFrontend( prefix, route, value, proxyReqOptions );
 
 						Debug( "translating %s to %s", value, translated );
 						res.setHeader( "Location", translated );
@@ -243,54 +265,68 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 	 *
 	 * @param {string} proxyPrefix URL prefix of current proxy
 	 * @param {string[]} current segments of currently processed route in scope of proxy's prefix
-	 * @param {string} backendUrl URL provided for backend to be translated
-	 * @return {string} translated URL addressing same resource for use by proxy's client
+	 * @param {string} backendUrl URL suitable for backend to be translated into URL suitable for frontend
+	 * @return {string} translated URL addressing same resource for use by frontend e.g. proxy's client
 	 */
-	function translateBackendUrl( proxyPrefix, current, backendUrl ) {
+	function translateUrlBackendToFrontend( proxyPrefix, current, backendUrl ) {
 		const url = URL.parse( backendUrl );
-		if ( url.host ) {
-			// handle redirection to absolute URL
-			const href = `${url.protocol}//${url.hostname}:${url.port || defaultPort}${url.path || ""}${url.hash || ""}`;
+
+		if ( !url.host ) {
+			// qualify local path name to always handle absolute URLs below
+
+			// temporarily remove optional query from path name
+			const querySplit = /^([^?]*)(\?.*)?$/.exec( backendUrl );
+			const pathname = querySplit[1];
+			const query = querySplit[2];
+
+			// map relative path name onto absolute path name
+			const currentPath = ( current || [] ).slice( 0, -1 ).join( "/" );
+			const absolutePath = pathname[0] === "/" ? pathname : Path.resolve( backend.path, currentPath, pathname );
+
+			url.protocol = backend.protocol;
+			url.hostname = backend.host;
+			url.port = backend.port;
+			url.path = absolutePath + ( query == null ? "" : query );
+		}
+
+		const qualifiedUrl = `${url.protocol}//${url.hostname}:${url.port || defaultPort}${url.path || ""}${url.hash || ""}`;
 
 
-			// find proxy with longest prefix matching redirection target
-			let match = null;
-			const sources = Object.keys( reverseMap );
-			const numSources = sources.length;
+		// find proxy with longest prefix matching redirection target
+		let match = null;
+		const sourcesList = Object.keys( reverseMap );
+		const numSourcesLists = sourcesList.length;
 
-			for ( let i = 0; i < numSources; i++ ) {
-				const source = sources[i];
+		for ( let i = 0; i < numSourcesLists; i++ ) {
+			const source = sourcesList[i];
 
-				if ( href.indexOf( source ) === 0 && href[source.length].match( /$|[/?#&]/ ) ) {
-					if ( match == null || source.length > match.length ) {
-						match = source;
-					}
+			if ( qualifiedUrl.indexOf( source ) === 0 && ( qualifiedUrl.length === source.length || qualifiedUrl[source.length].match( /[/?#&]/ ) || qualifiedUrl[source.length - 1].match( /[/?#&]/ ) ) ) {
+				if ( match == null || source.length > match.length ) {
+					match = source;
 				}
 			}
-
-			if ( match == null ) {
-				// redirect to "foreign" host as given by remote
-				return backendUrl;
-			}
-
-
-			// replace absolute URL with local one addressing matching proxy
-			return Path.join( reverseMap[match], href.substr( match.length ) );
 		}
 
-		const base = "/" + ( current || [] ).slice( 0, -1 ).join( "/" );
-
-		if ( backendUrl[0] === "/" ) {
-			const myScope = backend.path;
-			const myScopeSize = myScope.length;
-
-			if ( backendUrl.indexOf( myScope ) === 0 && backendUrl[myScopeSize].match( /$|[/?#&]/ ) ) {
-				return Path.join( proxyPrefix, backendUrl.substr( myScopeSize ) );
-			}
-
-			return proxyPrefix;
+		if ( match == null ) {
+			// redirect to "foreign" host as given by remote
+			return qualifiedUrl;
 		}
 
-		return Path.join( proxyPrefix, Path.resolve( base, backendUrl ) );
+
+		// choose prefix of proxy to be used in translated URL for addressing backend resource
+		const sources = reverseMap[match];
+		const numSources = sources.length;
+		let source = sources[0];
+
+		for ( let i = 1; i < numSources; i++ ) {
+			if ( sources[i] === proxyPrefix ) {
+				source = proxyPrefix;
+				break;
+			}
+		}
+
+
+		// replace absolute URL with local one addressing matching proxy
+		return Path.join( source, qualifiedUrl.substr( match.length ) );
 	}
 }

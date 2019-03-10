@@ -34,11 +34,23 @@ exports.proxy = [
 		target: "https://duckduckgo.com/",
 	},
 	{
-		prefix: "/local/mirror",
+		prefix: "/mirror",
 		target: "http://127.0.0.1:23456/",
 	},
 	{
-		prefix: "/local/sub-mirror",
-		target: "http://127.0.0.1:23456/sub/mirrored",
+		prefix: "/mirror/prefixed",
+		target: "http://127.0.0.1:23457/backend",
+	},
+	{
+		prefix: "/alt/mirror/prefixed",
+		target: "http://127.0.0.1:23457/backend",
+	},
+	{
+		prefix: "/alt/mirror/sibling",
+		target: "http://127.0.0.1:23457/separate",
+	},
+	{
+		prefix: "/alt/mirror/sub",
+		target: "http://127.0.0.1:23457/backend/sub",
 	},
 ];

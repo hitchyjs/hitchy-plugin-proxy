@@ -39,9 +39,10 @@ module.exports = {
  * Starts HTTP server responding to every incoming request with JSON data set
  * describing properties of either request.
  *
+ * @param {int} port number of port mirror is available at locally
  * @return {Promise<HTTP.Server>} promises HTTP server listening on port 23456
  */
-function start() {
+function start( port = 23456 ) {
 	return new Promise( ( resolve, reject ) => {
 		const server = HTTP.createServer( ( req, res ) => {
 			const chunks = [];
@@ -56,7 +57,7 @@ function start() {
 					body: Buffer.concat( chunks ).toString( "utf8" ),
 				};
 
-				const match = /^(?:\/sub\/mirrored)?\/redirect\/me\/(30\d)\?to=([^&]+)/.exec( req.url );
+				const match = /\/redirect\/me\/(30\d)\?to=([^&]+)/.exec( req.url );
 				if ( match ) {
 					res.statusCode = parseInt( match[1] );
 					res.setHeader( "Location", decodeURIComponent( match[2] ) );
@@ -72,7 +73,7 @@ function start() {
 		server.on( "error", reject );
 		server.on( "listening", () => resolve( server ) );
 
-		server.listen( 23456, "127.0.0.1" );
+		server.listen( port, "127.0.0.1" );
 	} );
 }
 
