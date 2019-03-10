@@ -104,6 +104,30 @@ exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
 				}
 			}
 		}
+
+		for ( let i = 0; i < numProxies; i++ ) {
+			const { prefix, alias } = proxies[i] || {};
+			if ( prefix && alias ) {
+				const aliases = Array.isArray( alias ) ? alias : [alias];
+				const numAliases = aliases.length;
+
+				for ( let j = 0; j < numAliases; j++ ) {
+					const _alias = aliases[j];
+
+					if ( _alias && typeof _alias === "string" ) {
+						const url = URL.parse( _alias );
+
+						if ( url && url.hostname ) {
+							const normalized = `${url.protocol}//${url.hostname}:${url.port || ( url.protocol === "https:" ? 443 : 80 )}${url.path}`;
+
+							if ( !reverseMap.hasOwnProperty( normalized ) ) { // eslint-disable-line max-depth
+								reverseMap[normalized] = [prefix];
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return routes;
