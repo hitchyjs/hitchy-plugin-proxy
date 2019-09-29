@@ -31,7 +31,7 @@
 const { posix: Path } = require( "path" );
 const HTTP = require( "http" );
 const HTTPS = require( "https" );
-const URL = require( "url" );
+const Url = require( "url" );
 
 
 
@@ -64,7 +64,7 @@ exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
 			const { prefix, target } = proxy;
 
 			if ( prefix && target ) {
-				const parsed = URL.parse( target );
+				const parsed = Url.parse( target );
 				if ( parsed.hostname ) {
 					const agentOptions = Object.assign( {}, defaultAgentOptions, proxy.agentOptions );
 					const context = {
@@ -115,7 +115,7 @@ exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
 					const _alias = aliases[j];
 
 					if ( _alias && typeof _alias === "string" ) {
-						const url = URL.parse( _alias );
+						const url = Url.parse( _alias );
 
 						if ( url && url.hostname ) {
 							const normalized = `${url.protocol}//${url.hostname}:${url.port || ( url.protocol === "https:" ? 443 : 80 )}${url.path}`;
@@ -293,7 +293,7 @@ function createProxy( { prefix, library, agent, defaultPort }, backend, config, 
 	 * @return {string} translated URL addressing same resource for use by frontend e.g. proxy's client
 	 */
 	function translateUrlBackendToFrontend( proxyPrefix, current, backendUrl ) {
-		const url = URL.parse( backendUrl );
+		const url = Url.parse( backendUrl );
 
 		if ( !url.host ) {
 			// qualify local path name to always handle absolute URLs below
