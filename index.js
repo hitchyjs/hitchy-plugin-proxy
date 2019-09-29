@@ -47,7 +47,7 @@ const defaultAgentOptions = {
  * @returns {Map<string, function>} maps from routes in functions handling requests for either route
  */
 exports.blueprints = function( options ) { // eslint-disable-line no-unused-vars
-	const { runtime: { config: { proxy: proxies } }, log } = this;
+	const { config: { proxy: proxies }, log } = this;
 
 	const routes = new Map();
 	const reverseMap = {};

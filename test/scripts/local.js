@@ -50,7 +50,7 @@ describe( "Hitchy instance exposing reverse proxy on request mirror as backend",
 	before( "starting hitchy and mirroring backend", () => {
 		return Promise.all( [
 			HitchyDev.start( {
-				extensionFolder: Path.resolve( __dirname, "../.." ),
+				pluginsFolder: Path.resolve( __dirname, "../.." ),
 				testProjectFolder: Path.resolve( __dirname, "../project" ),
 			} ),
 			StartHTTP( 23456 ),
