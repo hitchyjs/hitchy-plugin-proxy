@@ -1,7 +1,7 @@
 {
 	"name": "hitchy-plugin-proxy",
 	"version": "0.0.5",
-	"description": "hitchy extension forwarding requests to remote servers",
+	"description": "hitchy plugin forwarding requests to remote servers",
 	"main": "index.js",
 	"scripts": {
 		"test": "mocha --ui=tdd test/scripts/*.js",
@@ -22,15 +22,15 @@
 	},
 	"homepage": "https://github.com/hitchyjs/plugin-proxy#readme",
 	"peerDependencies": {
-		"hitchy": "0.*"
+		"hitchy": "^0.4.0"
 	},
 	"devDependencies": {
-		"eslint": "^5.8.0",
-		"eslint-config-cepharum": "^1.0.8",
-		"eslint-plugin-promise": "^4.0.1",
-		"hitchy-server-dev-tools": "*",
-		"http-tag-string": "0.0.1",
-		"mocha": "^5.2.0",
+		"eslint": "^6.5.0",
+		"eslint-config-cepharum": "^1.0.10",
+		"eslint-plugin-promise": "^4.2.1",
+		"hitchy-server-dev-tools": "^0.1.3",
+		"http-tag-string": "^0.1.0",
+		"mocha": "^6.2.0",
 		"should": "^13.2.3",
 		"should-http": "^0.1.1"
 	}
