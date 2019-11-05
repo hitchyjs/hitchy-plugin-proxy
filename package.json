@@ -22,15 +22,15 @@
 	},
 	"homepage": "https://github.com/hitchyjs/plugin-proxy#readme",
 	"peerDependencies": {
-		"hitchy": "^0.4.0"
+		"hitchy": "^0.4.6"
 	},
 	"devDependencies": {
-		"eslint": "^6.5.0",
+		"eslint": "^6.6.0",
 		"eslint-config-cepharum": "^1.0.10",
 		"eslint-plugin-promise": "^4.2.1",
-		"hitchy-server-dev-tools": "^0.1.3",
+		"hitchy-server-dev-tools": "^0.1.4",
 		"http-tag-string": "^0.1.1",
-		"mocha": "^6.2.0",
+		"mocha": "^6.2.2",
 		"should": "^13.2.3",
 		"should-http": "^0.1.1"
 	}
