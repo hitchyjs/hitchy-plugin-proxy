@@ -1,3 +1,7 @@
+# [Hitchy](https://core.hitchy.org) has [moved its repositories](https://gitlab.com/hitchy) incl. [this one](https://gitlab.com/hitchy/plugin-proxy).
+
+---
+
 # hitchy-plugin-proxy
 
 hitchy plugin adding support for redirecting requests to remote server
